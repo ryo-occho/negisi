@@ -1,4 +1,4 @@
-﻿# 開発エージェント向けガイド
+# 開発エージェント向けガイド
 
 ## 基本方針
 
@@ -16,7 +16,7 @@
 - `config/`: 機密情報を含まない設定
 - `public/`: 公開する静的ファイル
 
-アプリ本体は未実装。Node.js 22 を使い、`npm ci` で開発ツールを導入する。検証は `npm run lint`、`npm run format:check`、`npm run db:start`、`npm run test:db`。DB テストには Docker が必要。
+Next.js の試作画面を実装済み。起動は `npm run dev`、ビルドは `npm run build`、型チェックは `npm run typecheck`。Node.js 22 を使い、`npm ci` で開発ツールを導入する。検証は `npm run lint`、`npm run format:check`、`npm run db:start`、`npm run test:db`。DB テストには Docker が必要。
 技術スタック導入時に README と CONTRIBUTING.md に実際の手順を追記する。
 
 ## 作業手順
