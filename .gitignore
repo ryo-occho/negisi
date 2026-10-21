@@ -25,3 +25,8 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.swp
+
+.next/
+next-env.d.ts
+*.tsbuildinfo
+.vercel/

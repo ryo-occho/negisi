@@ -1,4 +1,4 @@
-﻿# 共同開発ガイド
+# 共同開発ガイド
 
 ## 開発を始める
 
@@ -7,7 +7,7 @@ git clone https://github.com/ryo-occho/negisi.git
 cd negisi
 ```
 
-Node.js 22 と Docker Desktop を用意し、`npm ci` で開発ツールをインストールします。PR 前に `npm run lint`、`npm run format:check`、`npm run db:start`、`npm run test:db` を実行してください。アプリ起動・ビルドは未対応です。
+Node.js 22 と Docker Desktop を用意し、`npm ci` で開発ツールをインストールします。PR 前に `npm run lint`、`npm run format:check`、`npm run db:start`、`npm run test:db` を実行してください。`npm run dev` で開発サーバーを起動し、`npm run build` で本番ビルド、`npm run typecheck` で型チェックを行います。
 技術スタックを導入する際は、必要なバージョン、セットアップ、各コマンドを README に追加してください。
 AI エージェントを利用する場合は AGENTS.md も参照してください。
 
