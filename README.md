@@ -1,4 +1,4 @@
-﻿# negisi
+# negisi
 
 茨城県つくばみらい市の和食料理店「ねぎしや」で使う、スタッフ向けのシフト調整 Web アプリケーションです。
 約12人のスタッフの希望シフトを集め、全員で希望を確認・共有できるようにします。確定シフトの決定方法は今後検討します。
@@ -89,6 +89,8 @@ PR 作成・更新時と、`develop`・`main` への push 時に GitHub Actions 
 | `npm run db:start`     | ローカル検証用 DB の起動とマイグレーション適用   |
 | `npm run test:db`      | pgTAP のデータベーステスト                       |
 | `npm run db:stop`      | ローカル DB の停止                               |
+
+DB テストは `supabase/`、`package.json`、`package-lock.json`、CI ワークフローに変更がある場合に実行します。文書のみの変更では省略します。
 
 DB テストには Docker が必要です。CI は一時的なローカル DB を使用し、クラウドのデータや秘密キーは使用しません。
 ブランチ保護の必須チェックは別途 GitHub で設定します。
