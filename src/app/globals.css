@@ -611,3 +611,101 @@ h2 small {
     padding-top: 20px;
   }
 }
+.login-page {
+  margin: 0;
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+.login-card {
+  width: min(100%, 440px);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 32px;
+}
+.login-card .brand {
+  margin-bottom: 30px;
+}
+.login-card h1 {
+  font-size: 22px;
+  line-height: 1.6;
+}
+.login-card label,
+.setup-card label {
+  display: block;
+  font-size: 12px;
+  margin: 18px 0 8px;
+}
+.login-card input,
+.setup-card input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fafbf8;
+  color: var(--ink);
+}
+.login-card .submit-button {
+  width: 100%;
+}
+.error-message {
+  color: #a83f32;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.setup-card {
+  margin-top: 24px;
+}
+.setup-card h2 {
+  line-height: 1.7;
+}
+.setup-card input {
+  margin-bottom: 18px;
+}
+.save-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.shared-table {
+  overflow-x: auto;
+}
+.shared-table table {
+  border-collapse: collapse;
+  white-space: nowrap;
+  width: 100%;
+  font-size: 12px;
+}
+.shared-table th,
+.shared-table td {
+  border: 1px solid var(--line);
+  padding: 10px;
+  text-align: center;
+}
+.shared-table th {
+  background: #f0f3ed;
+}
+.mobile-logout {
+  display: none;
+}
+@media (max-width: 720px) {
+  .login-card {
+    padding: 24px;
+  }
+  .mobile-logout {
+    display: block;
+  }
+  .sidebar nav {
+    gap: 3px;
+  }
+  .nav-item {
+    font-size: 10px;
+    padding: 12px 5px;
+  }
+  .save-actions button {
+    flex: 1;
+  }
+}
