@@ -92,3 +92,7 @@ PR 作成・更新時と、`develop`・`main` への push 時に GitHub Actions 
 
 DB テストには Docker が必要です。CI は一時的なローカル DB を使用し、クラウドのデータや秘密キーは使用しません。
 ブランチ保護の必須チェックは別途 GitHub で設定します。
+
+## Vercel
+
+確認済みの公開設定、CLI の確認手順、現在の制約は [Vercel の運用ガイド](docs/vercel.md) を参照してください。
