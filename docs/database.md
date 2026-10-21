@@ -9,12 +9,12 @@
 
 ## テーブル
 
-| テーブル | 用途 |
-| --- | --- |
-| staff | Auth のユーザー ID、表示名、在籍状態 |
-| shift_periods | 半月の開始・終了日、提出期限、受付中フラグ |
-| shift_submissions | 期間と本人ごとの提出日時。null は未提出・編集中 |
-| shift_availability | 出勤可能な日と昼夜の希望 |
+| テーブル           | 用途                                            |
+| ------------------ | ----------------------------------------------- |
+| staff              | Auth のユーザー ID、表示名、在籍状態            |
+| shift_periods      | 半月の開始・終了日、提出期限、受付中フラグ      |
+| shift_submissions  | 期間と本人ごとの提出日時。null は未提出・編集中 |
+| shift_availability | 出勤可能な日と昼夜の希望                        |
 
 日時は timestamptz、勤務日は日本の日付として date に保存します。
 締め切りは対象期間開始日の日本時間0時以前に設定します。
@@ -44,8 +44,9 @@
 Docker Desktop と Node.js が必要です。リポジトリのルートで実行します。
 
 ```sh
-npx supabase@2.121.0 start
-npx supabase@2.121.0 test db
+npm ci
+npm run db:start
+npm run test:db
 ```
 
 CLI が生成した supabase/config.toml と migrations を利用します。
@@ -63,3 +64,10 @@ CLI が生成した supabase/config.toml と migrations を利用します。
 - Security Advisor の指摘はありません。
 - Performance Advisor の未使用索引 INFO が2件あります。新規 DB のため、スタッフ参照用の索引は維持しています。
 - 実際のスタッフ登録とクラウド Auth のサインアップ無効化は未実施です。アプリの認証導入時に設定してください。自己登録した Auth ユーザーには、staff への登録なしでデータアクセス権限は付与されません。
+
+## CI
+
+`.github/workflows/ci.yml` が PR の作成・更新時と `develop` / `main` への push 時に、ESLint・Prettier と DB テストを別ジョブで実行します。
+DB ジョブは `npm ci` → `npm run db:start` → `npm run test:db` の順で実行し、最後にローカル DB を停止します。
+Supabase のアクセストークンやクラウド接続先の設定は不要です。
+ローカル DB は他プロジェクトとの競合を避けるためポート55322（シャドー DB は55320）を使用します。

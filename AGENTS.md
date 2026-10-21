@@ -16,7 +16,7 @@
 - `config/`: 機密情報を含まない設定
 - `public/`: 公開する静的ファイル
 
-言語・フレームワークは未選定。現時点では実行・ビルド・テスト用のコマンドは存在しない。
+アプリ本体は未実装。Node.js 22 を使い、`npm ci` で開発ツールを導入する。検証は `npm run lint`、`npm run format:check`、`npm run db:start`、`npm run test:db`。DB テストには Docker が必要。
 技術スタック導入時に README と CONTRIBUTING.md に実際の手順を追記する。
 
 ## 作業手順
