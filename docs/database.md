@@ -52,3 +52,14 @@ CLI が生成した supabase/config.toml と migrations を利用します。
 ローカルは自己登録を無効化しており、テストデータはテスト内で作成・ロールバックします。
 クラウドにも migrations の SQL を適用します。Auth の「Allow new users to sign up」は Dashboard で無効化してください。
 秘密キー・接続パスワード・実際のスタッフ情報はコミットしません。
+
+## クラウド適用状況
+
+- プロジェクト: negisi（東京 / ap-northeast-1、作成時の見積もりは月額0ドル）
+- Dashboard: https://supabase.com/dashboard/project/weqnbdxkstwpnofbefnh
+- マイグレーション: 20261021191529_create_shift_database（適用済み）
+- ローカルのマイグレーション番号はクラウドの適用履歴と一致させています。
+- クラウド PostgreSQL 17.11 で pgTAP 14項目がすべて成功しました。検証データはロールバック済みです。
+- Security Advisor の指摘はありません。
+- Performance Advisor の未使用索引 INFO が2件あります。新規 DB のため、スタッフ参照用の索引は維持しています。
+- 実際のスタッフ登録とクラウド Auth のサインアップ無効化は未実施です。アプリの認証導入時に設定してください。自己登録した Auth ユーザーには、staff への登録なしでデータアクセス権限は付与されません。
