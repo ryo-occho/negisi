@@ -1,4 +1,4 @@
-﻿# For detailed configuration reference documentation, visit:
+# For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
@@ -31,9 +31,9 @@ enabled = false
 
 [db]
 # Port to use for the local database URL.
-port = 54322
+port = 55322
 # Port used by db diff command to initialize the shadow database.
-shadow_port = 54320
+shadow_port = 55320
 # Maximum amount of time to wait for health check when starting the local database.
 health_timeout = "2m"
 # The database major version to use. This has to be the same as your remote database's. Run `SHOW

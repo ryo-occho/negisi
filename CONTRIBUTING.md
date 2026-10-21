@@ -7,7 +7,7 @@ git clone https://github.com/ryo-occho/negisi.git
 cd negisi
 ```
 
-言語・フレームワークは未選定です。現時点でインストール、アプリ起動、ビルド、テストのコマンドはありません。
+Node.js 22 と Docker Desktop を用意し、`npm ci` で開発ツールをインストールします。PR 前に `npm run lint`、`npm run format:check`、`npm run db:start`、`npm run test:db` を実行してください。アプリ起動・ビルドは未対応です。
 技術スタックを導入する際は、必要なバージョン、セットアップ、各コマンドを README に追加してください。
 AI エージェントを利用する場合は AGENTS.md も参照してください。
 
