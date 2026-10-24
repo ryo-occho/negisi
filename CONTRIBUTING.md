@@ -27,6 +27,13 @@ PR 前には `npm run lint`、`npm run format:check`、`npm run typecheck`、`np
 
 変更は `feature/* → develop → main` の順で取り込みます。`feature/*` から `main` へ直接 PR を作成しません。
 
+## UI コンポーネント
+
+UI は Tailwind CSS 4 と shadcn/ui（Radix UI、`radix-nova`）を使用します。`npm ci` で必要な依存関係が揃い、追加のセットアップは不要です。
+設定は `components.json`、PostCSS の設定は `postcss.config.mjs`、配色は `src/app/globals.css` のテーマ変数で管理します。日本語のフォントは OS の標準フォントを使用します。
+共通部品は `src/components/ui/` にあり、`@/components/ui/button` などのエイリアスで読み込みます。追加する場合は `npx shadcn@4.22.1 add <コンポーネント名>` を実行し、生成された差分と依存関係を確認してください。依存関係のバージョンは既存の規約に合わせて固定します。
+Tailwind のユーティリティーが個別画面のスタイルを調整できるよう、既存のレイアウト CSS は `@layer components` に配置しています。共通部品を使う画面では、キーボード操作、未保存時の確認、320px 幅での表示も検証してください。
+
 ## PR とレビュー
 
 - タイトルは変更内容が分かる簡潔なものにします。

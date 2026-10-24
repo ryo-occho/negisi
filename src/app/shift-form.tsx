@@ -3,19 +3,38 @@
 import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../lib/database.types';
+import UiIcon from './ui-icon';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { cn } from '@/lib/utils';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 type Client = SupabaseClient<Database>;
 type Slot = 'lunch' | 'dinner' | 'either';
 type Half = 'first' | 'second';
+type View = 'edit' | 'preview' | 'resubmit' | 'everyone';
 type Staff = Database['public']['Tables']['staff']['Row'];
 type Period = Database['public']['Tables']['shift_periods']['Row'];
 type Availability = Database['public']['Tables']['shift_availability']['Row'];
 type Submission = Database['public']['Tables']['shift_submissions']['Row'];
-const options: { value: Slot; label: string; symbol: string }[] = [
-  { value: 'lunch', label: '昼', symbol: '☀' },
-  { value: 'dinner', label: '夜', symbol: '☾' },
-  { value: 'either', label: 'どちらも可', symbol: '◐' },
-];
+const options = [
+  { value: 'lunch', label: '昼', icon: 'sun' },
+  { value: 'dinner', label: '夜', icon: 'moon' },
+  { value: 'either', label: 'どちらも可', icon: 'either' },
+] as const;
 
 export default function ShiftForm({
   client,
@@ -33,9 +52,10 @@ export default function ShiftForm({
   const [staff, setStaff] = useState<Staff[] | null>(null);
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
-  const [view, setView] = useState<'edit' | 'preview' | 'everyone'>('edit');
+  const [view, setView] = useState<View>('edit');
   const [signingOut, setSigningOut] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   useEffect(() => {
     let active = true;
     client
@@ -61,15 +81,12 @@ export default function ShiftForm({
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
   const me = staff?.find(({ id, active }) => id === userId && active);
-  function canLeave() {
-    if (saving) return false;
-    return (
-      !dirty ||
-      window.confirm('未保存の希望があります。変更を破棄して移動しますか？')
-    );
+  function requestLeave(action: () => void) {
+    if (saving) return;
+    if (dirty) setPendingAction(() => action);
+    else action();
   }
   async function signOut() {
-    if (!canLeave()) return;
     setSigningOut(true);
     const { error: signOutError } = await client.auth.signOut({
       scope: 'local',
@@ -88,67 +105,105 @@ export default function ShiftForm({
             ねぎしや<small>SHIFT NOTE</small>
           </span>
         </div>
-        <p className="side-caption">スタッフのシフトノート</p>
+        <p className="side-caption">WORKSPACE</p>
         <nav aria-label="メインメニュー">
           {(
             [
-              { id: 'edit', label: '▦ 希望を入力' },
-              { id: 'preview', label: '☑ 提出内容を確認' },
-              { id: 'everyone', label: '☷ みんなの希望' },
+              { id: 'edit', label: '希望を入力', icon: 'calendar' },
+              { id: 'preview', label: '提出内容を確認', icon: 'check' },
+              { id: 'resubmit', label: '再提出', icon: 'refresh' },
+              { id: 'everyone', label: 'スタッフの希望一覧', icon: 'users' },
             ] as const
-          ).map(({ id, label }) => (
-            <button
+          ).map(({ id, label, icon }) => (
+            <Button
+              variant="ghost"
               key={id}
-              className={view === id ? 'nav-item active' : 'nav-item'}
+              className={cn(
+                'nav-item h-auto min-w-0 justify-start text-[13px] max-[760px]:justify-center max-[760px]:px-1 max-[760px]:text-[11px] max-[380px]:text-[10px]',
+                view === id && 'active',
+              )}
+              aria-pressed={view === id}
               onClick={() => setView(id)}
             >
-              {label}
-            </button>
+              <UiIcon name={icon} />
+              <span>{label}</span>
+            </Button>
           ))}
         </nav>
         <div className="side-footer">
+          <span className="avatar" aria-hidden="true">
+            {me?.display_name.slice(0, 1) ?? 'ね'}
+          </span>
           <div>
             {me?.display_name ?? 'スタッフ'}
             <small>ねぎしや</small>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               className="clear-button"
               disabled={signingOut}
-              onClick={signOut}
+              onClick={() => requestLeave(() => void signOut())}
             >
+              <UiIcon name="logout" />
               ログアウト
-            </button>
+            </Button>
           </div>
         </div>
       </aside>
       <main>
         <header className="topbar">
-          <span>ねぎしや / シフト</span>
-          <button
-            className="clear-button mobile-logout"
+          <span className="breadcrumb">
+            ねぎしや <span>/</span> シフトノート
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="clear-button mobile-logout hidden max-[760px]:inline-flex"
             disabled={signingOut}
-            onClick={signOut}
+            onClick={() => requestLeave(() => void signOut())}
           >
+            <UiIcon name="logout" />
             ログアウト
-          </button>
-          <span className="demo-badge">スタッフ専用</span>
+          </Button>
+          <Badge variant="secondary" className="demo-badge max-[760px]:hidden">
+            スタッフ専用
+          </Badge>
         </header>
         <div className="content">
           <div className="page-heading">
             <div>
-              <p className="eyebrow">SHIFT NOTE</p>
+              <p className="eyebrow">MAKE ROOM FOR YOUR DAYS</p>
               <h1>
                 {view === 'everyone'
-                  ? 'みんなの希望'
+                  ? 'スタッフの希望一覧'
                   : view === 'preview'
                     ? '提出内容を確認'
-                    : '次のシフト、いつ出られる？'}
+                    : view === 'resubmit'
+                      ? '提出した希望を変更する'
+                      : '希望シフトの入力'}
               </h1>
               <p className="subtitle">
-                出勤できる日に、昼・夜の希望を入れましょう。
+                {view === 'everyone'
+                  ? 'スタッフの希望と提出状況を一覧で確認できます。'
+                  : view === 'preview'
+                    ? '選んだ日と時間帯を、もう一度チェックしましょう。'
+                    : view === 'resubmit'
+                      ? '提出済みの希望を修正して、変更した内容を再提出できます。'
+                      : '出勤可能な日と時間帯を選択してください。'}
               </p>
             </div>
-            <span className="heading-flower" aria-hidden="true">
-              ✳
+            <span className="heading-icon" aria-hidden="true">
+              <UiIcon
+                name={
+                  view === 'everyone'
+                    ? 'users'
+                    : view === 'preview'
+                      ? 'check'
+                      : view === 'resubmit'
+                        ? 'refresh'
+                        : 'calendar'
+                }
+              />
             </span>
           </div>
           {error && (
@@ -164,46 +219,54 @@ export default function ShiftForm({
             </p>
           ) : (
             <>
-              <section className="period-card" aria-label="対象期間">
+              <Card
+                className="period-card flex-row flex-wrap items-center gap-5 p-5 shadow-none"
+                role="region"
+                aria-label="対象期間"
+              >
                 <div>
-                  <label htmlFor="month">対象の月</label>
-                  <input
+                  <Label htmlFor="month">対象の月</Label>
+                  <Input
                     id="month"
                     type="month"
                     min="2000-01"
                     max="2100-12"
                     value={month}
                     onChange={(event) => {
-                      if (
-                        /^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(
-                          event.target.value,
-                        ) &&
-                        canLeave()
-                      ) {
-                        setMonth(event.target.value);
-                        setDirty(false);
+                      const nextMonth = event.target.value;
+                      if (/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(nextMonth)) {
+                        requestLeave(() => {
+                          setMonth(nextMonth);
+                          setDirty(false);
+                        });
                       }
                     }}
                   />
                 </div>
                 <div className="half-picker" aria-label="半月の選択">
                   {(['first', 'second'] as const).map((value) => (
-                    <button
+                    <Button
+                      variant="ghost"
                       key={value}
                       aria-pressed={half === value}
-                      className={half === value ? 'selected' : ''}
+                      className={cn(
+                        'h-11 min-w-0 flex-1 px-2 text-xs',
+                        half === value && 'selected',
+                      )}
                       onClick={() => {
-                        if (value !== half && canLeave()) {
-                          setHalf(value);
-                          setDirty(false);
+                        if (value !== half) {
+                          requestLeave(() => {
+                            setHalf(value);
+                            setDirty(false);
+                          });
                         }
                       }}
                     >
                       {value === 'first' ? '前半 1〜15日' : '後半 16〜月末'}
-                    </button>
+                    </Button>
                   ))}
                 </div>
-              </section>
+              </Card>
               <PeriodEditor
                 key={`${month}-${half}`}
                 client={client}
@@ -214,6 +277,7 @@ export default function ShiftForm({
                 view={view}
                 onDirty={setDirty}
                 onSaving={setSaving}
+                onViewChange={setView}
               />
             </>
           )}
@@ -222,6 +286,35 @@ export default function ShiftForm({
           </footer>
         </div>
       </main>
+      <AlertDialog
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
+      >
+        <AlertDialogContent className="w-[calc(100%-2rem)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>未保存の希望があります</AlertDialogTitle>
+            <AlertDialogDescription>
+              移動すると、保存していない変更は失われます。編集を続けるか、変更を破棄して移動してください。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11">
+              編集を続ける
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="min-h-11"
+              onClick={() => {
+                pendingAction?.();
+                setPendingAction(null);
+              }}
+            >
+              変更を破棄して移動
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -235,15 +328,17 @@ function PeriodEditor({
   view,
   onDirty,
   onSaving,
+  onViewChange,
 }: {
   client: Client;
   userId: string;
   staff: Staff[];
   month: string;
   half: Half;
-  view: 'edit' | 'preview' | 'everyone';
+  view: View;
   onDirty: (value: boolean) => void;
   onSaving: (value: boolean) => void;
+  onViewChange: (view: View) => void;
 }) {
   const [year, monthNumber] = month.split('-').map(Number);
   const start = half === 'first' ? 1 : 16;
@@ -360,7 +455,13 @@ function PeriodEditor({
       setSubmittedAt(data);
       setDirty(false);
       onDirty(false);
-      setMessage(submit ? '希望を提出しました。' : '下書きを保存しました。');
+      setMessage(
+        submit
+          ? view === 'resubmit'
+            ? '変更を再提出しました。'
+            : '希望を提出しました。'
+          : '下書きを保存しました。',
+      );
       setRevision((value) => value + 1);
     } catch {
       setError(
@@ -373,9 +474,27 @@ function PeriodEditor({
   }
 
   if (busy && !period) return <p role="status">希望シフトを読み込み中…</p>;
+  if (!period && view === 'resubmit' && !error)
+    return (
+      <Card className="preview-card setup-card gap-4">
+        <h2>この期間はまだ提出されていません</h2>
+        <p className="hint">初めての提出は「希望を入力」から行ってください。</p>
+        <Button
+          className="submit-button self-start"
+          onClick={() => onViewChange('edit')}
+        >
+          希望を入力する
+          <UiIcon name="arrow" />
+        </Button>
+      </Card>
+    );
   if (!period)
     return (
-      <section className="preview-card setup-card">
+      <Card className="preview-card setup-card gap-0 p-6 sm:p-8">
+        <span className="setup-icon">
+          <UiIcon name="calendar" />
+        </span>
+        <p className="eyebrow">A NEW SCHEDULE</p>
         <h2>
           {monthNumber}月{start}日〜{end}日の受付
         </h2>
@@ -412,8 +531,8 @@ function PeriodEditor({
             }
           }}
         >
-          <label htmlFor="deadline">提出締め切り（日本時間）</label>
-          <input
+          <Label htmlFor="deadline">提出締め切り（日本時間）</Label>
+          <Input
             id="deadline"
             type="datetime-local"
             required
@@ -421,31 +540,60 @@ function PeriodEditor({
             onChange={(event) => setDeadline(event.target.value)}
             disabled={busy}
           />
-          <button className="submit-button" disabled={busy}>
+          <Button type="submit" className="submit-button" disabled={busy}>
             {busy ? '作成中…' : 'この期間の受付を作成'}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
     );
 
   return (
     <>
       <div className="demo-note">
-        締め切り：
-        {new Date(period.deadline).toLocaleString('ja-JP', {
-          timeZone: 'Asia/Tokyo',
-        })}
-        （日本時間） · {closed ? '受付終了' : '受付中'}
-        <br />
-        希望は「下書き保存」または「提出」で保存されます。希望と確定シフトは異なります。
+        <div className="deadline-label">
+          <UiIcon name="clock" />
+          <span>提出締め切り</span>
+        </div>
+        <div className="deadline-detail">
+          <strong>
+            {new Date(period.deadline).toLocaleString('ja-JP', {
+              timeZone: 'Asia/Tokyo',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </strong>
+          <span className={`acceptance ${closed ? 'closed' : ''}`}>
+            {closed ? '受付終了' : '受付中'}
+          </span>
+        </div>
+        <p>
+          日本時間 ·
+          希望は下書き保存・提出で保存されます。確定シフトとは異なります。
+        </p>
       </div>
       <div className="section-heading">
         <h2>
           {monthNumber}月{start}日 <span>—</span> {end}日
         </h2>
-        <span className="status">
-          {dirty ? '未保存の変更あり' : submittedAt ? '● 提出済み' : '○ 未提出'}
-        </span>
+        <Badge
+          variant="outline"
+          className={cn(
+            'status h-auto px-3 py-1.5 text-xs',
+            submittedAt && !dirty
+              ? 'submitted border-emerald-200 bg-emerald-50 text-emerald-800'
+              : 'border-amber-200 bg-amber-50 text-amber-800',
+          )}
+        >
+          {submittedAt && !dirty ? (
+            <UiIcon name="check" />
+          ) : (
+            <span className="status-dot" aria-hidden="true" />
+          )}
+          {dirty ? '未保存の変更あり' : submittedAt ? '提出済み' : '未提出'}
+        </Badge>
       </div>
       {error && (
         <p role="alert" className="error-message">
@@ -453,7 +601,7 @@ function PeriodEditor({
         </p>
       )}
       {view === 'everyone' ? (
-        <section className="preview-card">
+        <Card className="preview-card gap-0">
           <h3>全員の保存済み希望</h3>
           <p className="hint">
             未提出の下書きも表示します。最新の内容は再読み込みして確認してください。
@@ -462,17 +610,19 @@ function PeriodEditor({
             <table>
               <thead>
                 <tr>
-                  <th>スタッフ</th>
-                  <th>提出状況</th>
+                  <th scope="col">スタッフ</th>
+                  <th scope="col">提出状況</th>
                   {days.map(({ day }) => (
-                    <th key={day}>{day}日</th>
+                    <th scope="col" key={day}>
+                      {day}日
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {staff.map((person) => (
                   <tr key={person.id}>
-                    <th>
+                    <th scope="row">
                       {person.display_name}
                       {person.active ? '' : '（利用停止）'}
                     </th>
@@ -503,9 +653,11 @@ function PeriodEditor({
             —
             は出勤不可です。未提出者の空欄は、まだ入力していない場合もあります。
           </p>
-        </section>
-      ) : view === 'preview' ? (
-        <section className="preview-card">
+        </Card>
+      ) : view === 'preview' ||
+        (view === 'edit' && submittedAt) ||
+        (view === 'resubmit' && !submittedAt) ? (
+        <Card className="preview-card gap-0">
           <h3>
             {dirty
               ? '未保存の希望'
@@ -534,9 +686,43 @@ function PeriodEditor({
             </ul>
           )}
           <p className="hint">ここにない日は出勤不可です。</p>
-        </section>
+          {submittedAt ? (
+            <div className="mt-5 flex flex-col items-start gap-3 border-t border-border pt-5">
+              <p className="hint m-0">
+                {closed
+                  ? '受付が終了したため、この提出内容は変更できません。'
+                  : '変更したい場合は「再提出」から修正できます。変更を再提出するまでは、前回の提出内容が保存されています。'}
+              </p>
+              <Button
+                className="submit-button"
+                disabled={closed || busy}
+                onClick={() => onViewChange('resubmit')}
+              >
+                <UiIcon name="refresh" />
+                再提出へ進む
+              </Button>
+            </div>
+          ) : view === 'resubmit' ? (
+            <div className="mt-5 flex flex-col items-start gap-3 border-t border-border pt-5">
+              <p className="hint m-0">
+                この期間はまだ未提出です。初めての提出は「希望を入力」から行ってください。
+              </p>
+              <Button
+                className="submit-button"
+                onClick={() => onViewChange('edit')}
+              >
+                希望を入力する
+                <UiIcon name="arrow" />
+              </Button>
+            </div>
+          ) : null}
+        </Card>
       ) : (
-        <section className="schedule-card" aria-label="希望シフトの入力">
+        <Card
+          className="schedule-card gap-0 overflow-hidden py-0 shadow-none"
+          role="region"
+          aria-label="希望シフトの入力"
+        >
           <div className="table-heading">
             <span>日付</span>
             <span>出勤できる時間帯</span>
@@ -552,48 +738,64 @@ function PeriodEditor({
                   {['日', '月', '火', '水', '木', '金', '土'][weekday]}
                 </span>
               </div>
-              <div
-                className="slot-options"
-                role="group"
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={availability[key] ?? ''}
+                onValueChange={(value) =>
+                  choose(key, value ? (value as Slot) : undefined)
+                }
+                disabled={busy || closed}
+                className="slot-options w-full"
                 aria-label={`${monthNumber}月${day}日の希望`}
               >
-                {options.map(({ value, label, symbol }) => (
-                  <button
+                {options.map(({ value, label, icon }) => (
+                  <ToggleGroupItem
                     key={value}
-                    disabled={busy || closed}
-                    aria-pressed={availability[key] === value}
-                    className={`slot ${availability[key] === value ? `chosen ${value}` : ''}`}
-                    onClick={() =>
-                      choose(
-                        key,
-                        availability[key] === value ? undefined : value,
-                      )
-                    }
+                    value={value}
+                    className={cn(
+                      'slot h-11 min-w-0 flex-1 px-2 text-xs last:flex-[1.5]',
+                      value === 'lunch'
+                        ? 'data-[state=on]:border-emerald-300 data-[state=on]:bg-emerald-50 data-[state=on]:text-emerald-800'
+                        : value === 'dinner'
+                          ? 'data-[state=on]:border-indigo-300 data-[state=on]:bg-indigo-50 data-[state=on]:text-indigo-800'
+                          : 'data-[state=on]:border-amber-300 data-[state=on]:bg-amber-50 data-[state=on]:text-amber-800',
+                    )}
                   >
-                    <span aria-hidden="true">{symbol}</span>
+                    <UiIcon name={icon} />
                     {label}
-                  </button>
+                  </ToggleGroupItem>
                 ))}
-              </div>
+              </ToggleGroup>
               <div className="row-summary">
                 {availability[key] ? (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     disabled={busy || closed}
                     className="clear-button"
                     aria-label={`${monthNumber}月${day}日の選択を解除`}
                     onClick={() => choose(key)}
                   >
                     解除 ×
-                  </button>
+                  </Button>
                 ) : (
                   <span>出勤不可</span>
                 )}
               </div>
             </div>
           ))}
-        </section>
+        </Card>
       )}
-      {view !== 'everyone' && (
+      {view === 'resubmit' && submittedAt && (
+        <p className="hint mt-4">
+          {closed
+            ? '受付が終了したため、再提出はできません。'
+            : '変更後は「変更を再提出」を押してください。再提出するまでは、前回の提出内容は変わりません。'}
+        </p>
+      )}
+      {((view === 'resubmit' && submittedAt) ||
+        ((view === 'edit' || view === 'preview') && !submittedAt)) && (
         <div className="bottom-panel">
           <div>
             <strong>選ばない日は、出勤不可になります。</strong>
@@ -601,20 +803,29 @@ function PeriodEditor({
             <small>{selectedDays.length}日 出勤可能</small>
           </div>
           <div className="save-actions">
-            <button
-              className="secondary-button"
-              disabled={busy || closed || !dirty}
-              onClick={() => save(false)}
-            >
-              下書き保存
-            </button>
-            <button
+            {view !== 'resubmit' && (
+              <Button
+                variant="outline"
+                className="secondary-button"
+                disabled={busy || closed || !dirty}
+                onClick={() => save(false)}
+              >
+                下書き保存
+              </Button>
+            )}
+            <Button
+              type="button"
               className="submit-button"
               disabled={busy || closed || Boolean(submittedAt && !dirty)}
               onClick={() => save(true)}
             >
-              {busy ? '保存中…' : 'この内容で提出'}
-            </button>
+              {busy
+                ? '保存中…'
+                : view === 'resubmit'
+                  ? '変更を再提出'
+                  : 'この内容で提出'}
+              <UiIcon name="arrow" />
+            </Button>
           </div>
         </div>
       )}
