@@ -30,14 +30,14 @@ Next.js の希望入力画面を Supabase Auth / Database に接続していま�
 
 ## 現在の技術構成
 
-| 役割                  | 技術・サービス       |
-| --------------------- | -------------------- |
-| 画面・サーバー処理    | Next.js / TypeScript |
-| スタイリング          | CSS                  |
-| データベース          | Supabase PostgreSQL  |
-| 認証                  | Supabase Auth        |
-| ホスティング          | Vercel               |
-| ソースコード・PR 管理 | GitHub               |
+| 役割                  | 技術・サービス                         |
+| --------------------- | -------------------------------------- |
+| 画面・サーバー処理    | Next.js / TypeScript                   |
+| スタイリング          | Tailwind CSS 4 / shadcn/ui（Radix UI） |
+| データベース          | Supabase PostgreSQL                    |
+| 認証                  | Supabase Auth                          |
+| ホスティング          | Vercel                                 |
+| ソースコード・PR 管理 | GitHub                                 |
 
 開発は Supabase Free と Vercel Hobby を利用する方針です。
 各サービスの利用条件・無料枠を確認しながら進めます。
