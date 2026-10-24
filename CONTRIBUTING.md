@@ -13,6 +13,8 @@ AI エージェントを利用する場合は AGENTS.md も参照してくださ
 
 ## 変更の進め方
 
+PR 前には `npm run lint`、`npm run format:check`、`npm run typecheck`、`npm run build` を実行します。認証・DB・希望保存を変更した場合は DB テストと [画面からの検証](docs/readiness.md) も実施してください。CI でも型チェックと本番ビルドを実行します。
+
 1. 不具合や大きな機能追加は、Issue で目的と範囲を共有します。
 2. 最新の `develop` から `feature/*` ブランチを作成します（例: `feature/login`、`feature/login-fix`、`feature/docs-setup`）。
 3. 関連する変更だけを実装し、必要なドキュメントとテストを更新します。

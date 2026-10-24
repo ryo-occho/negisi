@@ -23,7 +23,7 @@ Framework Preset は Next.js に変更済みです。Node.js のバージョン�
 GitHub との連携と本番デプロイの作成は完了しています。
 確認時点の main は初期構成のコミット 68a0d55 で、アプリ本体やトップページがないため公開 URL は404です。
 Vercel の Ready はデプロイ処理の完了を示し、アプリ画面の実装完了を示すものではありません。
-アプリの初期画面を実装した後、プレビューで表示を検証します。
+`develop` には Supabase 接続実装まで取り込まれています。2026-10-24 の確認では、コミット `83cdd66` の Preview は Ready です。本番は上記の初期構成のままです。最新の検証結果は [利用開始・検証ガイド](readiness.md) を参照してください。
 Supabase 接続用の公開 URL と publishable key は Preview / Production / Development に登録済みです。接続・スタッフ登録の手順は [Supabase 接続ガイド](supabase-connection.md) を参照してください。
 
 ## ブランチの運用
@@ -33,7 +33,7 @@ Supabase 接続用の公開 URL と publishable key は Preview / Production / D
 3. main にマージされた変更は、GitHub 連携による本番デプロイの対象になります。
 
 本番へのマージや手動デプロイは、明示的な承認を得て実行します。
-GitHub 連携によるプレビューの自動生成は、アプリ実装後の PR で動作を確認してください。
+GitHub 連携によるプレビューの自動生成は、既存の機能 PR と `develop` のデプロイ履歴で確認済みです。リリース対象のコミットについても、Preview の表示と CI の結果を確認してください。
 
 ## CLI による確認
 
