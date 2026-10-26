@@ -97,11 +97,12 @@ export default function ShiftForm({
   }, [client]);
   useEffect(() => {
     let active = true;
-    client
-      .from('shift_periods')
-      .select('*')
-      .gte('starts_on', month + '-01')
-      .lte('starts_on', month + '-' + lastDay)
+    let query = client.from('shift_periods').select('*');
+    if (view !== 'resubmit')
+      query = query
+        .gte('starts_on', month + '-01')
+        .lte('starts_on', month + '-' + lastDay);
+    query
       .order('starts_on')
       .order('ends_on')
       .then(({ data, error: loadError }) => {
@@ -113,7 +114,7 @@ export default function ShiftForm({
     return () => {
       active = false;
     };
-  }, [client, month, lastDay, periodRevision]);
+  }, [client, month, lastDay, periodRevision, view]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -124,6 +125,30 @@ export default function ShiftForm({
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
   const me = staff?.find(({ id, active }) => id === userId && active);
+  useEffect(() => {
+    if (
+      !me ||
+      (me.can_manage_shifts && view !== 'resubmit') ||
+      periods.length === 0
+    )
+      return;
+    if (
+      periods.some(
+        (p) =>
+          p.starts_on.slice(0, 7) === month &&
+          Number(p.starts_on.slice(8)) === startDay &&
+          Number(p.ends_on.slice(8)) === endDay,
+      )
+    )
+      return;
+    const selected =
+      periods.find(
+        (p) => p.accepting && Date.now() < new Date(p.deadline).getTime(),
+      ) ?? periods[0];
+    setMonth(selected.starts_on.slice(0, 7));
+    setStartDay(Number(selected.starts_on.slice(8)));
+    setEndDay(Number(selected.ends_on.slice(8)));
+  }, [me, periods, month, startDay, endDay, view]);
   function requestLeave(action: () => void) {
     if (saving) return;
     if (dirty) setPendingAction(() => action);
@@ -281,119 +306,104 @@ export default function ShiftForm({
                 role="region"
                 aria-label="対象期間"
               >
-                <div className="col-span-2 flex min-w-0 flex-col gap-2">
-                  <Label htmlFor="month">対象の月</Label>
-                  <Input
-                    className="w-full max-w-none text-base"
-                    id="month"
-                    type="month"
-                    min="2000-01"
-                    max="2100-12"
-                    value={month}
-                    onChange={(event) => {
-                      const nextMonth = event.target.value;
-                      if (/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(nextMonth)) {
-                        requestLeave(() => {
-                          const nextLastDay = new Date(
-                            Number(nextMonth.slice(0, 4)),
-                            Number(nextMonth.slice(5)),
-                            0,
-                          ).getDate();
-                          setStartDay(Math.min(startDay, nextLastDay));
-                          setEndDay(
-                            endDay === lastDay
-                              ? nextLastDay
-                              : Math.min(endDay, nextLastDay),
-                          );
-                          setPeriods([]);
-                          setMonth(nextMonth);
-                          setDirty(false);
-                        });
-                      }
-                    }}
-                  />
-                </div>
-                <div className="flex min-w-0 flex-col gap-2">
-                  <Label htmlFor="start-day">開始日</Label>
-                  <select
-                    id="start-day"
-                    className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
-                    value={startDay}
-                    disabled={saving}
-                    onChange={(event) => {
-                      const next = Number(event.target.value);
-                      requestLeave(() => {
-                        setStartDay(next);
-                        setEndDay(Math.max(next, endDay));
-                        setDirty(false);
-                      });
-                    }}
-                  >
-                    {Array.from(
-                      { length: lastDay },
-                      (_, index) => index + 1,
-                    ).map((day) => (
-                      <option key={day} value={day}>
-                        {day}日
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex min-w-0 flex-col gap-2">
-                  <Label htmlFor="end-day">終了日</Label>
-                  <select
-                    id="end-day"
-                    className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
-                    value={endDay}
-                    disabled={saving}
-                    onChange={(event) => {
-                      const next = Number(event.target.value);
-                      requestLeave(() => {
-                        setEndDay(next);
-                        setDirty(false);
-                      });
-                    }}
-                  >
-                    {Array.from(
-                      { length: lastDay - startDay + 1 },
-                      (_, index) => startDay + index,
-                    ).map((day) => (
-                      <option key={day} value={day}>
-                        {day}日
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div
-                  className="half-picker col-span-2 w-full lg:w-auto"
-                  aria-label="期間を簡単に選択"
-                >
-                  {(['first', 'second'] as const).map((value) => (
-                    <Button
-                      variant="ghost"
-                      key={value}
-                      aria-pressed={
-                        value === 'first'
-                          ? startDay === 1 && endDay === 15
-                          : startDay === 16 && endDay === lastDay
-                      }
-                      className="h-11 min-w-0 flex-1 px-2 text-xs"
-                      disabled={saving}
-                      onClick={() =>
-                        requestLeave(() => {
-                          setStartDay(value === 'first' ? 1 : 16);
-                          setEndDay(value === 'first' ? 15 : lastDay);
-                          setDirty(false);
-                        })
-                      }
-                    >
-                      {value === 'first' ? '前半 1〜15日' : '後半 16〜月末'}
-                    </Button>
-                  ))}
-                </div>
+                {view !== 'resubmit' && (
+                  <div className="col-span-2 flex min-w-0 flex-col gap-2">
+                    <Label htmlFor="month">対象の月</Label>
+                    <Input
+                      className="w-full max-w-none text-base"
+                      id="month"
+                      type="month"
+                      min="2000-01"
+                      max="2100-12"
+                      value={month}
+                      onChange={(event) => {
+                        const nextMonth = event.target.value;
+                        if (
+                          /^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(nextMonth)
+                        ) {
+                          requestLeave(() => {
+                            const nextLastDay = new Date(
+                              Number(nextMonth.slice(0, 4)),
+                              Number(nextMonth.slice(5)),
+                              0,
+                            ).getDate();
+                            setStartDay(Math.min(startDay, nextLastDay));
+                            setEndDay(
+                              endDay === lastDay
+                                ? nextLastDay
+                                : Math.min(endDay, nextLastDay),
+                            );
+                            setPeriods([]);
+                            setMonth(nextMonth);
+                            setDirty(false);
+                          });
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+                {me.can_manage_shifts && view !== 'resubmit' && (
+                  <>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <Label htmlFor="start-day">開始日</Label>
+                      <select
+                        id="start-day"
+                        className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
+                        value={startDay}
+                        disabled={saving}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          requestLeave(() => {
+                            setStartDay(next);
+                            setEndDay(Math.max(next, endDay));
+                            setDirty(false);
+                          });
+                        }}
+                      >
+                        {Array.from(
+                          { length: lastDay },
+                          (_, index) => index + 1,
+                        ).map((day) => (
+                          <option key={day} value={day}>
+                            {day}日
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex min-w-0 flex-col gap-2">
+                      <Label htmlFor="end-day">終了日</Label>
+                      <select
+                        id="end-day"
+                        className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
+                        value={endDay}
+                        disabled={saving}
+                        onChange={(event) => {
+                          const next = Number(event.target.value);
+                          requestLeave(() => {
+                            setEndDay(next);
+                            setDirty(false);
+                          });
+                        }}
+                      >
+                        {Array.from(
+                          { length: lastDay - startDay + 1 },
+                          (_, index) => startDay + index,
+                        ).map((day) => (
+                          <option key={day} value={day}>
+                            {day}日
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
                 {periods.length > 0 && (
                   <div className="col-span-2 flex w-full min-w-0 flex-col gap-2">
-                    <Label htmlFor="saved-period">登録済みの期間</Label>
+                    <Label htmlFor="saved-period">
+                      {view === 'resubmit'
+                        ? '再提出する希望調査'
+                        : '回答する希望調査'}
+                    </Label>
                     <select
                       id="saved-period"
                       className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
@@ -401,6 +411,7 @@ export default function ShiftForm({
                       value={
                         periods.find(
                           (p) =>
+                            p.starts_on.slice(0, 7) === month &&
                             Number(p.starts_on.slice(8)) === startDay &&
                             Number(p.ends_on.slice(8)) === endDay,
                         )?.id ?? ''
@@ -411,15 +422,20 @@ export default function ShiftForm({
                         );
                         if (!selected) return;
                         requestLeave(() => {
+                          setMonth(selected.starts_on.slice(0, 7));
                           setStartDay(Number(selected.starts_on.slice(8)));
                           setEndDay(Number(selected.ends_on.slice(8)));
                           setDirty(false);
                         });
                       }}
                     >
-                      <option value="">新しい期間</option>
+                      {me.can_manage_shifts && view !== 'resubmit' && (
+                        <option value="">新しい期間</option>
+                      )}
                       {periods.map((p) => (
                         <option key={p.id} value={p.id}>
+                          {view === 'resubmit' &&
+                            `${p.starts_on.slice(0, 4)}年${Number(p.starts_on.slice(5, 7))}月`}
                           {Number(p.starts_on.slice(8))}日〜
                           {Number(p.ends_on.slice(8))}日
                         </option>
@@ -654,6 +670,24 @@ function PeriodEditor({
         </Button>
       </Card>
     );
+  if (
+    !period &&
+    (view === 'resubmit' ||
+      !staff.some(
+        (person) =>
+          person.id === userId && person.active && person.can_manage_shifts,
+      ))
+  )
+    return (
+      <Card className="preview-card setup-card gap-0 p-6 sm:p-8">
+        <h2>希望調査の開始をお待ちください</h2>
+        <p>
+          この期間の希望調査はまだ開始されていません。
+          根岸（るみ）さん・ひろあきさんが期間を決めて開始すると、入力できます。
+          登録済みの調査がある場合は「回答する希望調査」から選んでください。
+        </p>
+      </Card>
+    );
   if (!period)
     return (
       <Card className="preview-card setup-card gap-0 p-6 sm:p-8">
@@ -670,12 +704,21 @@ function PeriodEditor({
           </p>
         ) : (
           <p>
-            この期間はまだ受付が作成されていません。全スタッフが作成できます。既存の期間とは別に希望・確定シフトを保存します。
+            希望調査の期間と提出締め切りを確認して開始してください。開始すると、全スタッフがこの期間の希望を入力できます。
           </p>
         )}
         <form
           onSubmit={async (event) => {
             event.preventDefault();
+            if (
+              !staff.some(
+                (person) =>
+                  person.id === userId &&
+                  person.active &&
+                  person.can_manage_shifts,
+              )
+            )
+              return;
             setBusy(true);
             setError('');
             try {
@@ -708,7 +751,7 @@ function PeriodEditor({
             disabled={busy}
           />
           <Button type="submit" className="submit-button" disabled={busy}>
-            {busy ? '作成中…' : 'この期間の受付を作成'}
+            {busy ? '開始中…' : 'この期間の希望調査を開始'}
           </Button>
         </form>
       </Card>

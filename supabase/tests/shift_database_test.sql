@@ -1,7 +1,7 @@
 ﻿-- Run only on a disposable/local database. All fixture changes are rolled back.
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(14);
+select plan(17);
 insert into auth.users (id) values
  ('00000000-0000-0000-0000-000000000001'),
  ('00000000-0000-0000-0000-000000000002'),
@@ -9,6 +9,7 @@ insert into auth.users (id) values
 insert into public.staff (id, display_name) values
  ('00000000-0000-0000-0000-000000000001', 'Test A'),
  ('00000000-0000-0000-0000-000000000002', 'Test B');
+update public.staff set can_manage_shifts = true where id = '00000000-0000-0000-0000-000000000002';
 insert into public.shift_periods (id, starts_on, ends_on, deadline) values
  ('00000000-0000-0000-0000-000000000010', '2099-02-16', '2099-02-28', '2099-02-15T12:00:00+09:00');
 select throws_ok($$insert into public.shift_periods (starts_on, ends_on, deadline)
@@ -23,6 +24,11 @@ select throws_ok($$insert into public.shift_submissions (period_id, staff_id)
  values ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000003')$$,
  '42501', null, 'Non-member write denied');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000001', true);
+select throws_ok($$insert into public.shift_periods (starts_on, ends_on, deadline)
+ values ('2099-03-01', '2099-03-15', '2099-02-28T00:00:00Z')$$,
+ '42501', null, 'Regular staff cannot start a survey');
+select throws_ok($$update public.shift_periods set accepting = false where id = '00000000-0000-0000-0000-000000000010'$$,
+ '42501', null, 'Regular staff cannot close a survey');
 select is((select count(*) from public.staff where id in (
  '00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002'
 )), 2::bigint, 'Staff can see colleagues');
@@ -40,6 +46,9 @@ select throws_ok($$insert into public.shift_availability values
  ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000001', '2099-03-01', 'lunch')$$,
  '42501', null, 'Date outside period rejected');
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002', true);
+select lives_ok($$insert into public.shift_periods (starts_on, ends_on, deadline)
+ values ('2099-03-01', '2099-03-15', '2099-02-28T00:00:00Z')$$,
+ 'Shift manager can start a survey');
 select is((select count(*) from public.shift_availability where period_id = '00000000-0000-0000-0000-000000000010'), 1::bigint, 'Colleague can read availability');
 update public.shift_availability set slot = 'dinner' where period_id = '00000000-0000-0000-0000-000000000010';
 select is((select slot from public.shift_availability where period_id = '00000000-0000-0000-0000-000000000010'), 'either', 'Cannot edit colleague availability');
