@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../lib/database.types';
 import UiIcon from './ui-icon';
+import StaffAvailabilityTable from './staff-availability-table';
+import PublishedSchedule from './published-schedule';
+import ShiftScheduleEditor from './shift-schedule-editor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -25,7 +28,8 @@ import {
 type Client = SupabaseClient<Database>;
 type Slot = 'lunch' | 'dinner' | 'either';
 type Half = 'first' | 'second';
-type View = 'edit' | 'preview' | 'resubmit' | 'everyone';
+type View =
+  'edit' | 'preview' | 'resubmit' | 'everyone' | 'schedule' | 'create';
 type Staff = Database['public']['Tables']['staff']['Row'];
 type Period = Database['public']['Tables']['shift_periods']['Row'];
 type Availability = Database['public']['Tables']['shift_availability']['Row'];
@@ -48,7 +52,23 @@ export default function ShiftForm({
   initialHalf: Half;
 }) {
   const [month, setMonth] = useState(initialMonth);
-  const [half, setHalf] = useState<Half>(initialHalf);
+  const [startDay, setStartDay] = useState(initialHalf === 'first' ? 1 : 16);
+  const [endDay, setEndDay] = useState(
+    initialHalf === 'first'
+      ? 15
+      : new Date(
+          Number(initialMonth.slice(0, 4)),
+          Number(initialMonth.slice(5)),
+          0,
+        ).getDate(),
+  );
+  const [periods, setPeriods] = useState<Period[]>([]);
+  const [periodRevision, setPeriodRevision] = useState(0);
+  const lastDay = new Date(
+    Number(month.slice(0, 4)),
+    Number(month.slice(5)),
+    0,
+  ).getDate();
   const [staff, setStaff] = useState<Staff[] | null>(null);
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
@@ -72,6 +92,26 @@ export default function ShiftForm({
       active = false;
     };
   }, [client]);
+  useEffect(() => {
+    let active = true;
+    client
+      .from('shift_periods')
+      .select('*')
+      .gte('starts_on', month + '-01')
+      .lte('starts_on', month + '-' + lastDay)
+      .order('starts_on')
+      .order('ends_on')
+      .then(({ data, error: loadError }) => {
+        if (!active) return;
+        if (loadError)
+          setError('登録済みの期間を取得できません。再読み込みしてください。');
+        else setPeriods(data ?? []);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, month, lastDay, periodRevision]);
+
   useEffect(() => {
     if (!dirty) return;
     const warn = (event: BeforeUnloadEvent) => {
@@ -113,22 +153,38 @@ export default function ShiftForm({
               { id: 'preview', label: '提出内容を確認', icon: 'check' },
               { id: 'resubmit', label: '再提出', icon: 'refresh' },
               { id: 'everyone', label: 'スタッフの希望一覧', icon: 'users' },
+              { id: 'schedule', label: '確定シフト', icon: 'calendar' },
+              { id: 'create', label: 'シフト作成', icon: 'calendar' },
             ] as const
-          ).map(({ id, label, icon }) => (
-            <Button
-              variant="ghost"
-              key={id}
-              className={cn(
-                'nav-item h-auto min-w-0 justify-start text-[13px] max-[760px]:justify-center max-[760px]:px-1 max-[760px]:text-[11px] max-[380px]:text-[10px]',
-                view === id && 'active',
-              )}
-              aria-pressed={view === id}
-              onClick={() => setView(id)}
-            >
-              <UiIcon name={icon} />
-              <span>{label}</span>
-            </Button>
-          ))}
+          )
+            .filter(({ id }) => id !== 'create' || me?.can_manage_shifts)
+            .map(({ id, label, icon }) => (
+              <Button
+                variant="ghost"
+                key={id}
+                className={cn(
+                  'nav-item h-auto min-w-0 justify-start text-[13px] max-[760px]:justify-center max-[760px]:px-1 max-[760px]:text-[11px] max-[380px]:text-[10px]',
+                  view === id && 'active',
+                )}
+                aria-pressed={view === id}
+                onClick={() => {
+                  if (
+                    view === 'schedule' ||
+                    id === 'schedule' ||
+                    view === 'create' ||
+                    id === 'create'
+                  ) {
+                    requestLeave(() => {
+                      setView(id);
+                      setDirty(false);
+                    });
+                  } else setView(id);
+                }}
+              >
+                <UiIcon name={icon} />
+                <span>{label}</span>
+              </Button>
+            ))}
         </nav>
         <div className="side-footer">
           <span className="avatar" aria-hidden="true">
@@ -174,22 +230,30 @@ export default function ShiftForm({
             <div>
               <p className="eyebrow">MAKE ROOM FOR YOUR DAYS</p>
               <h1>
-                {view === 'everyone'
-                  ? 'スタッフの希望一覧'
-                  : view === 'preview'
-                    ? '提出内容を確認'
-                    : view === 'resubmit'
-                      ? '提出した希望を変更する'
-                      : '希望シフトの入力'}
+                {view === 'create'
+                  ? 'シフト作成'
+                  : view === 'schedule'
+                    ? '確定シフト'
+                    : view === 'everyone'
+                      ? 'スタッフの希望一覧'
+                      : view === 'preview'
+                        ? '提出内容を確認'
+                        : view === 'resubmit'
+                          ? '提出した希望を変更する'
+                          : '希望シフトの入力'}
               </h1>
               <p className="subtitle">
-                {view === 'everyone'
-                  ? 'スタッフの希望と提出状況を一覧で確認できます。'
-                  : view === 'preview'
-                    ? '選んだ日と時間帯を、もう一度チェックしましょう。'
-                    : view === 'resubmit'
-                      ? '提出済みの希望を修正して、変更した内容を再提出できます。'
-                      : '出勤可能な日と時間帯を選択してください。'}
+                {view === 'create'
+                  ? 'スタッフの希望を確認しながら、日ごとの勤務を割り当てます。'
+                  : view === 'schedule'
+                    ? '保存・公開された勤務シフトを全員で確認できます。'
+                    : view === 'everyone'
+                      ? 'スタッフの希望と提出状況を一覧で確認できます。'
+                      : view === 'preview'
+                        ? '選んだ日と時間帯を、もう一度チェックしましょう。'
+                        : view === 'resubmit'
+                          ? '提出済みの希望を修正して、変更した内容を再提出できます。'
+                          : '出勤可能な日と時間帯を選択してください。'}
               </p>
             </div>
             <span className="heading-icon" aria-hidden="true">
@@ -220,13 +284,14 @@ export default function ShiftForm({
           ) : (
             <>
               <Card
-                className="period-card flex-row flex-wrap items-center gap-5 p-5 shadow-none"
+                className="period-card grid grid-cols-2 items-end gap-3 p-4 shadow-none sm:gap-4 sm:p-5 lg:flex lg:flex-row lg:flex-wrap lg:items-center"
                 role="region"
                 aria-label="対象期間"
               >
-                <div>
+                <div className="col-span-2 flex min-w-0 flex-col gap-2">
                   <Label htmlFor="month">対象の月</Label>
                   <Input
+                    className="w-full max-w-none text-base"
                     id="month"
                     type="month"
                     min="2000-01"
@@ -236,6 +301,18 @@ export default function ShiftForm({
                       const nextMonth = event.target.value;
                       if (/^(20\d{2}|2100)-(0[1-9]|1[0-2])$/.test(nextMonth)) {
                         requestLeave(() => {
+                          const nextLastDay = new Date(
+                            Number(nextMonth.slice(0, 4)),
+                            Number(nextMonth.slice(5)),
+                            0,
+                          ).getDate();
+                          setStartDay(Math.min(startDay, nextLastDay));
+                          setEndDay(
+                            endDay === lastDay
+                              ? nextLastDay
+                              : Math.min(endDay, nextLastDay),
+                          );
+                          setPeriods([]);
                           setMonth(nextMonth);
                           setDirty(false);
                         });
@@ -243,37 +320,130 @@ export default function ShiftForm({
                     }}
                   />
                 </div>
-                <div className="half-picker" aria-label="半月の選択">
+                <div className="flex min-w-0 flex-col gap-2">
+                  <Label htmlFor="start-day">開始日</Label>
+                  <select
+                    id="start-day"
+                    className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
+                    value={startDay}
+                    disabled={saving}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      requestLeave(() => {
+                        setStartDay(next);
+                        setEndDay(Math.max(next, endDay));
+                        setDirty(false);
+                      });
+                    }}
+                  >
+                    {Array.from(
+                      { length: lastDay },
+                      (_, index) => index + 1,
+                    ).map((day) => (
+                      <option key={day} value={day}>
+                        {day}日
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex min-w-0 flex-col gap-2">
+                  <Label htmlFor="end-day">終了日</Label>
+                  <select
+                    id="end-day"
+                    className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
+                    value={endDay}
+                    disabled={saving}
+                    onChange={(event) => {
+                      const next = Number(event.target.value);
+                      requestLeave(() => {
+                        setEndDay(next);
+                        setDirty(false);
+                      });
+                    }}
+                  >
+                    {Array.from(
+                      { length: lastDay - startDay + 1 },
+                      (_, index) => startDay + index,
+                    ).map((day) => (
+                      <option key={day} value={day}>
+                        {day}日
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div
+                  className="half-picker col-span-2 w-full lg:w-auto"
+                  aria-label="期間を簡単に選択"
+                >
                   {(['first', 'second'] as const).map((value) => (
                     <Button
                       variant="ghost"
                       key={value}
-                      aria-pressed={half === value}
-                      className={cn(
-                        'h-11 min-w-0 flex-1 px-2 text-xs',
-                        half === value && 'selected',
-                      )}
-                      onClick={() => {
-                        if (value !== half) {
-                          requestLeave(() => {
-                            setHalf(value);
-                            setDirty(false);
-                          });
-                        }
-                      }}
+                      aria-pressed={
+                        value === 'first'
+                          ? startDay === 1 && endDay === 15
+                          : startDay === 16 && endDay === lastDay
+                      }
+                      className="h-11 min-w-0 flex-1 px-2 text-xs"
+                      disabled={saving}
+                      onClick={() =>
+                        requestLeave(() => {
+                          setStartDay(value === 'first' ? 1 : 16);
+                          setEndDay(value === 'first' ? 15 : lastDay);
+                          setDirty(false);
+                        })
+                      }
                     >
                       {value === 'first' ? '前半 1〜15日' : '後半 16〜月末'}
                     </Button>
                   ))}
                 </div>
+                {periods.length > 0 && (
+                  <div className="col-span-2 flex w-full min-w-0 flex-col gap-2">
+                    <Label htmlFor="saved-period">登録済みの期間</Label>
+                    <select
+                      id="saved-period"
+                      className="h-11 w-full min-w-0 rounded-md border border-input bg-transparent px-3 text-base"
+                      disabled={saving}
+                      value={
+                        periods.find(
+                          (p) =>
+                            Number(p.starts_on.slice(8)) === startDay &&
+                            Number(p.ends_on.slice(8)) === endDay,
+                        )?.id ?? ''
+                      }
+                      onChange={(event) => {
+                        const selected = periods.find(
+                          (p) => p.id === event.target.value,
+                        );
+                        if (!selected) return;
+                        requestLeave(() => {
+                          setStartDay(Number(selected.starts_on.slice(8)));
+                          setEndDay(Number(selected.ends_on.slice(8)));
+                          setDirty(false);
+                        });
+                      }}
+                    >
+                      <option value="">新しい期間</option>
+                      {periods.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {Number(p.starts_on.slice(8))}日〜
+                          {Number(p.ends_on.slice(8))}日
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </Card>
               <PeriodEditor
-                key={`${month}-${half}`}
+                key={`${month}-${startDay}-${endDay}-${view === 'create' ? 'create' : view === 'schedule' ? 'schedule' : 'hope'}`}
                 client={client}
                 userId={userId}
                 staff={staff ?? []}
                 month={month}
-                half={half}
+                start={startDay}
+                end={endDay}
+                onPeriodCreated={() => setPeriodRevision((value) => value + 1)}
                 view={view}
                 onDirty={setDirty}
                 onSaving={setSaving}
@@ -294,7 +464,7 @@ export default function ShiftForm({
       >
         <AlertDialogContent className="w-[calc(100%-2rem)]">
           <AlertDialogHeader>
-            <AlertDialogTitle>未保存の希望があります</AlertDialogTitle>
+            <AlertDialogTitle>未保存の変更があります</AlertDialogTitle>
             <AlertDialogDescription>
               移動すると、保存していない変更は失われます。編集を続けるか、変更を破棄して移動してください。
             </AlertDialogDescription>
@@ -324,7 +494,9 @@ function PeriodEditor({
   userId,
   staff,
   month,
-  half,
+  start,
+  end,
+  onPeriodCreated,
   view,
   onDirty,
   onSaving,
@@ -334,17 +506,17 @@ function PeriodEditor({
   userId: string;
   staff: Staff[];
   month: string;
-  half: Half;
+  start: number;
+  end: number;
+  onPeriodCreated: () => void;
   view: View;
   onDirty: (value: boolean) => void;
   onSaving: (value: boolean) => void;
   onViewChange: (view: View) => void;
 }) {
   const [year, monthNumber] = month.split('-').map(Number);
-  const start = half === 'first' ? 1 : 16;
-  const end = half === 'first' ? 15 : new Date(year, monthNumber, 0).getDate();
   const startsOn = `${month}-${String(start).padStart(2, '0')}`;
-  const endsOn = `${month}-${end}`;
+  const endsOn = `${month}-${String(end).padStart(2, '0')}`;
   const previousDay = new Date(Date.UTC(year, monthNumber - 1, start - 1))
     .toISOString()
     .slice(0, 10);
@@ -368,6 +540,7 @@ function PeriodEditor({
           .from('shift_periods')
           .select('*')
           .eq('starts_on', startsOn)
+          .eq('ends_on', endsOn)
           .maybeSingle();
         if (periodError) throw periodError;
         if (!active) return;
@@ -408,7 +581,7 @@ function PeriodEditor({
     return () => {
       active = false;
     };
-  }, [client, startsOn, userId, revision]);
+  }, [client, startsOn, endsOn, userId, revision]);
 
   const days = Array.from({ length: end - start + 1 }, (_, index) => {
     const day = start + index;
@@ -504,7 +677,7 @@ function PeriodEditor({
           </p>
         ) : (
           <p>
-            この期間はまだ受付が作成されていません。全スタッフが作成できます。
+            この期間はまだ受付が作成されていません。全スタッフが作成できます。既存の期間とは別に希望・確定シフトを保存します。
           </p>
         )}
         <form
@@ -522,6 +695,7 @@ function PeriodEditor({
                 });
               if (createError && createError.code !== '23505')
                 throw createError;
+              onPeriodCreated();
               setRevision((value) => value + 1);
             } catch {
               setError(
@@ -578,81 +752,62 @@ function PeriodEditor({
         <h2>
           {monthNumber}月{start}日 <span>—</span> {end}日
         </h2>
-        <Badge
-          variant="outline"
-          className={cn(
-            'status h-auto px-3 py-1.5 text-xs',
-            submittedAt && !dirty
-              ? 'submitted border-emerald-200 bg-emerald-50 text-emerald-800'
-              : 'border-amber-200 bg-amber-50 text-amber-800',
-          )}
-        >
-          {submittedAt && !dirty ? (
-            <UiIcon name="check" />
-          ) : (
-            <span className="status-dot" aria-hidden="true" />
-          )}
-          {dirty ? '未保存の変更あり' : submittedAt ? '提出済み' : '未提出'}
-        </Badge>
+        {view !== 'create' && view !== 'schedule' && (
+          <Badge
+            variant="outline"
+            className={cn(
+              'status h-auto px-3 py-1.5 text-xs',
+              submittedAt && !dirty
+                ? 'submitted border-emerald-200 bg-emerald-50 text-emerald-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800',
+            )}
+          >
+            {submittedAt && !dirty ? (
+              <UiIcon name="check" />
+            ) : (
+              <span className="status-dot" aria-hidden="true" />
+            )}
+            {dirty ? '未保存の変更あり' : submittedAt ? '提出済み' : '未提出'}
+          </Badge>
+        )}
       </div>
       {error && (
         <p role="alert" className="error-message">
           {error}
         </p>
       )}
-      {view === 'everyone' ? (
+      {view === 'create' ? (
+        staff.some(
+          (person) =>
+            person.id === userId && person.active && person.can_manage_shifts,
+        ) ? (
+          <ShiftScheduleEditor
+            key={period.id}
+            client={client}
+            period={period}
+            staff={staff}
+            days={days}
+            onDirty={onDirty}
+            onSaving={onSaving}
+          />
+        ) : (
+          <p role="alert">シフトの作成権限がありません。</p>
+        )
+      ) : view === 'schedule' ? (
+        <PublishedSchedule
+          client={client}
+          period={period}
+          staff={staff}
+          days={days}
+        />
+      ) : view === 'everyone' ? (
         <Card className="preview-card gap-0">
-          <h3>全員の保存済み希望</h3>
-          <p className="hint">
-            未提出の下書きも表示します。最新の内容は再読み込みして確認してください。
-          </p>
-          <div className="shared-table">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">スタッフ</th>
-                  <th scope="col">提出状況</th>
-                  {days.map(({ day }) => (
-                    <th scope="col" key={day}>
-                      {day}日
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {staff.map((person) => (
-                  <tr key={person.id}>
-                    <th scope="row">
-                      {person.display_name}
-                      {person.active ? '' : '（利用停止）'}
-                    </th>
-                    <td>
-                      {submissions.find((s) => s.staff_id === person.id)
-                        ?.submitted_at
-                        ? '提出済み'
-                        : '未提出'}
-                    </td>
-                    {days.map(({ key }) => (
-                      <td key={key}>
-                        {options.find(
-                          (o) =>
-                            o.value ===
-                            rows.find(
-                              (r) =>
-                                r.staff_id === person.id && r.work_date === key,
-                            )?.slot,
-                        )?.label ?? '—'}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="hint">
-            —
-            は出勤不可です。未提出者の空欄は、まだ入力していない場合もあります。
-          </p>
+          <StaffAvailabilityTable
+            staff={staff}
+            submissions={submissions}
+            availability={rows}
+            days={days}
+          />
         </Card>
       ) : view === 'preview' ||
         (view === 'edit' && submittedAt) ||
