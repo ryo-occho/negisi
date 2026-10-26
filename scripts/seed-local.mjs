@@ -1,16 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import console from 'node:console';
-import { randomBytes } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
-import { parseEnv } from 'node:util';
 import { createClient } from '@supabase/supabase-js';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
-const credentialsPath = resolve(root, '.env.seed.local');
-const seedTag = 'negisi-local-v1';
 const profiles = [
   { slug: 'seiya', name: 'せいや' },
   { slug: 'yoshida', name: '吉田' },
@@ -28,10 +23,10 @@ const profiles = [
     unsubmitted: true,
   },
 ];
+
 const authOptions = {
   auth: { persistSession: false, autoRefreshToken: false },
 };
-
 async function checked(request, operation) {
   const { data, error } = await request;
   if (error) {
@@ -134,92 +129,40 @@ async function main() {
     status.SERVICE_ROLE_KEY,
     authOptions,
   );
-  const credentials = existsSync(credentialsPath)
-    ? parseEnv(readFileSync(credentialsPath, 'utf8'))
-    : {};
-  const existingUsers = [];
-  for (let page = 1; ; page++) {
-    const { users } = await checked(
-      admin.auth.admin.listUsers({ page, perPage: 1000 }),
-      'ユーザーの確認',
-    );
-    existingUsers.push(...users);
-    if (users.length < 1000) break;
-  }
-  const users = [];
+  const people = [];
   for (const profile of profiles) {
-    const prefix = `SEED_${profile.slug.toUpperCase()}`;
-    const email =
-      credentials[`${prefix}_EMAIL`] ??
-      `negisi-seed-${profile.slug}@example.test`;
-    const existing = existingUsers.find((user) => user.email === email);
-    if (existing && existing.app_metadata?.local_seed !== seedTag) {
-      throw new Error(
-        `${profile.name}のシード用メールが既存ユーザーと重複しています。上書きしません。`,
-      );
-    }
-    if (
-      existing &&
-      (!credentials[`${prefix}_PASSWORD`] ||
-        credentials[`${prefix}_EMAIL`] !== email)
-    ) {
-      throw new Error(
-        `${profile.name}のログイン情報が .env.seed.local にありません。既存のパスワードは変更しません。`,
-      );
-    }
-    if (!existing) {
-      credentials[`${prefix}_NAME`] = profile.name;
-      credentials[`${prefix}_EMAIL`] = email;
-      credentials[`${prefix}_PASSWORD`] =
-        randomBytes(24).toString('base64url') + '!aA1';
-      // Save before creating the user so an interrupted run can retain its credentials.
-      writeFileSync(
-        credentialsPath,
-        Object.entries(credentials)
-          .map(([key, value]) => `${key}=${JSON.stringify(value)}`)
-          .join('\n') + '\n',
-        { mode: 0o600 },
-      );
-    }
-    const password = credentials[`${prefix}_PASSWORD`];
-    const user =
-      existing ??
-      (
-        await checked(
-          admin.auth.admin.createUser({
-            email,
-            password,
-            email_confirm: true,
-            app_metadata: { local_seed: seedTag },
-          }),
-          'シードユーザーの作成',
-        )
-      ).user;
-    const staff = await checked(
-      admin.from('staff').select('id').eq('id', user.id).maybeSingle(),
+    let person = await checked(
+      admin
+        .from('staff')
+        .select('*')
+        .eq('display_name', profile.name)
+        .maybeSingle(),
       'スタッフの確認',
     );
-    if (!staff)
-      await checked(
-        admin.from('staff').insert({
-          id: user.id,
-          display_name: profile.name,
-          active: true,
-          can_manage_shifts: profile.canManageShifts ?? false,
-        }),
+    if (!person) {
+      person = await checked(
+        admin
+          .from('staff')
+          .insert({
+            display_name: profile.name,
+            active: true,
+            can_manage_shifts: profile.canManageShifts ?? false,
+          })
+          .select()
+          .single(),
         'スタッフの登録',
       );
-    if (staff && profile.canManageShifts)
+    } else if (profile.canManageShifts && !person.can_manage_shifts) {
       await checked(
         admin
           .from('staff')
           .update({ can_manage_shifts: true })
-          .eq('id', user.id),
+          .eq('id', person.id),
         'シフト作成権限の設定',
       );
-    users.push({ ...profile, id: user.id, email, password });
+    }
+    people.push({ ...profile, id: person.id, active: person.active });
   }
-
   const periods = [];
   for (const sample of samplePeriods()) {
     const existing = await checked(
@@ -231,40 +174,44 @@ async function main() {
         .maybeSingle(),
       '対象期間の確認',
     );
-    const period =
+    periods.push(
       existing ??
-      (await checked(
-        admin.from('shift_periods').insert(sample).select().single(),
-        '対象期間の作成',
-      ));
-    periods.push(period);
+        (await checked(
+          admin.from('shift_periods').insert(sample).select().single(),
+          '対象期間の作成',
+        )),
+    );
   }
-
+  const client = createClient(
+    status.API_URL,
+    status.PUBLISHABLE_KEY,
+    authOptions,
+  );
+  await checked(client.auth.signInAnonymously(), '名前選択用の接続');
+  const identity = await checked(
+    client.auth.getSession(),
+    '端末セッションの確認',
+  );
+  const userId = identity.session?.user.id;
+  if (!userId) throw new Error('名前選択用の接続を開始できません。');
   let created = 0;
   let skipped = 0;
-  for (const [index, user] of users.entries()) {
-    const client = createClient(
-      status.API_URL,
-      status.PUBLISHABLE_KEY,
-      authOptions,
-    );
-    await checked(
-      client.auth.signInWithPassword({
-        email: user.email,
-        password: user.password,
-      }),
-      'シードユーザーのログイン',
-    );
-    try {
+  try {
+    for (const [index, person] of people.entries()) {
+      if (!person.active || person.unsubmitted) continue;
+      await checked(
+        client
+          .from('staff_sessions')
+          .upsert({ user_id: userId, staff_id: person.id }),
+        'スタッフの選択',
+      );
       for (const [periodIndex, period] of periods.entries()) {
-        // Keep unsubmitted examples unchanged when more profiles are added.
-        if (user.unsubmitted) continue;
         const existing = await checked(
           client
             .from('shift_submissions')
             .select('staff_id')
             .eq('period_id', period.id)
-            .eq('staff_id', user.id)
+            .eq('staff_id', person.id)
             .maybeSingle(),
           '希望の確認',
         );
@@ -286,31 +233,33 @@ async function main() {
         );
         created++;
       }
-    } finally {
-      await checked(
-        client.auth.signOut({ scope: 'local' }),
-        'シード用セッションの終了',
-      );
     }
+  } finally {
+    await checked(
+      client.auth.signOut({ scope: 'local' }),
+      'シード用接続の終了',
+    );
   }
-  console.log(`ローカル用スタッフ ${users.length}名を用意しました。`);
   console.log(
-    `対象期間: ${periods.map((period) => `${period.starts_on}〜${period.ends_on}`).join('、')}`,
+    'ローカル用スタッフ ' +
+      people.length +
+      '名を用意しました。アプリで自分の名前を選んでください。',
   );
   console.log(
-    `希望の新規作成 ${created}件、既存・受付終了のため維持 ${skipped}件。`,
+    '希望の新規作成 ' +
+      created +
+      '件、既存・受付終了のため維持 ' +
+      skipped +
+      '件。',
   );
-  console.table(users.map(({ name }) => ({ 名前: name })));
-  console.log(
-    'ログイン用パスワードは .env.seed.local に保存しました（Git 対象外）。',
-  );
+  console.log('メールアドレス・パスワード・招待メールは使用しません。');
 }
 
 main().catch((error) => {
   console.error(
     error instanceof Error
       ? error.message
-      : 'ローカルシードの作成に失敗しました。',
+      : 'ローカルデータを作成できませんでした。',
   );
   process.exitCode = 1;
 });

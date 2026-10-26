@@ -18,7 +18,7 @@ set local role anon;
 select throws_ok('select * from public.staff', '42501', null, 'Anonymous access denied');
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000003', true);
-select is((select count(*) from public.staff), 0::bigint, 'Non-member sees no staff');
+select is((select count(*) from public.staff where id in ('00000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000002')), 2::bigint, 'Name chooser lists active staff before selection');
 select throws_ok($$insert into public.shift_submissions (period_id, staff_id)
  values ('00000000-0000-0000-0000-000000000010', '00000000-0000-0000-0000-000000000003')$$,
  '42501', null, 'Non-member write denied');

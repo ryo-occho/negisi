@@ -1,5 +1,7 @@
 'use client';
 
+import StaffName from './staff-name';
+
 import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
@@ -166,7 +168,7 @@ export default function PublishedSchedule({
                           {assigned.length ? (
                             assigned.map((person) => (
                               <span className="mobile-person" key={person.id}>
-                                {person.display_name}
+                                <StaffName name={person.display_name} />
                                 {!person.active && <small>利用停止</small>}
                               </span>
                             ))
@@ -209,7 +211,7 @@ export default function PublishedSchedule({
                   {people.map((person) => (
                     <tr key={person.id}>
                       <th scope="row" className="border p-2">
-                        {person.display_name}
+                        <StaffName name={person.display_name} />
                         {!person.active && '（利用停止）'}
                       </th>
                       {days.map((day) => (

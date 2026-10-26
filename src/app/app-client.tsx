@@ -1,14 +1,17 @@
-﻿'use client';
+'use client';
 
-import { useEffect, useState } from 'react';
+import StaffName from './staff-name';
+
+import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
+import type { Database } from '@/lib/database.types';
 import { getSupabase } from '../lib/supabase';
 import ShiftForm from './shift-form';
 import UiIcon from './ui-icon';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Card } from '@/components/ui/card';
+
+type Staff = Database['public']['Tables']['staff']['Row'];
 
 export default function AppClient({
   initialMonth,
@@ -19,168 +22,158 @@ export default function AppClient({
 }) {
   const [client] = useState(getSupabase);
   const [session, setSession] = useState<Session | null>(null);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [selected, setSelected] = useState<Staff | null>(null);
   const [ready, setReady] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState('');
+  const [revision, setRevision] = useState(0);
+  const connecting = useRef<Promise<Session> | null>(null);
 
   useEffect(() => {
     if (!client) return;
     let active = true;
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, next) => {
-      if (active) {
-        setSession(next);
-        setReady(true);
+    } = client.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        connecting.current = null;
+        setSelected(null);
+        setSession(null);
+        setReady(false);
+        setRevision((value) => value + 1);
       }
     });
-    client.auth
-      .getSession()
-      .then(({ data, error: sessionError }) => {
-        if (!active) return;
-        if (sessionError)
-          setError('ログイン状態を確認できません。再読み込みしてください。');
-        setSession(data.session);
-        setReady(true);
-      })
-      .catch(() => {
+    async function load() {
+      try {
+        // Reuse a device session; opening the selector never picks a staff profile automatically.
+        connecting.current ??= (async () => {
+          const { data, error: sessionError } = await client!.auth.getSession();
+          if (sessionError) throw sessionError;
+          if (data.session) return data.session;
+          const { data: guest, error: guestError } =
+            await client!.auth.signInAnonymously();
+          if (guestError || !guest.session)
+            throw new Error('connection_failed');
+          return guest.session;
+        })();
+        const current = await connecting.current;
+        const { data, error: staffError } = await client!
+          .from('staff')
+          .select('*')
+          .eq('active', true)
+          .order('display_name');
+        if (staffError) throw staffError;
         if (active) {
-          setError('接続できません。通信状態を確認してください。');
-          setReady(true);
+          setSession(current);
+          setStaff(data);
+          setError('');
         }
-      });
+      } catch {
+        connecting.current = null;
+        if (active)
+          setError(
+            '名前の一覧を取得できません。通信状態を確認し、もう一度お試しください。',
+          );
+      } finally {
+        if (active) setReady(true);
+      }
+    }
+    void load();
     return () => {
       active = false;
       subscription.unsubscribe();
     };
-  }, [client]);
+  }, [client, revision]);
 
-  if (client && session)
+  if (client && selected)
     return (
       <ShiftForm
-        key={session.user.id}
+        key={selected.id}
         client={client}
-        userId={session.user.id}
+        userId={selected.id}
         initialMonth={initialMonth}
         initialHalf={initialHalf}
+        onChangeStaff={() => setSelected(null)}
       />
     );
 
   return (
     <main className="login-page">
-      <div className="login-layout">
-        <aside className="login-story" aria-label="シフトノートについて">
-          <p className="eyebrow">NEGISHIYA / SHIFT NOTE</p>
-          <h2>
-            いつものお店を、
-            <br />
-            みんなの予定で。
-          </h2>
-          <p className="login-story-copy">
-            働ける日を選んで、ひとつのシフトノートに。
-            <br />
-            次の半月も、気持ちよくはじめましょう。
+      <Card className="w-full max-w-xl gap-5 rounded-3xl p-6 sm:p-10">
+        <div className="brand">
+          <span className="brand-seal">ね</span>
+          <span>
+            ねぎしや<small>SHIFT NOTE</small>
+          </span>
+        </div>
+        <div>
+          <h1>あなたの名前を選んでください</h1>
+          <p className="hint m-0">名前をタップして、シフトノートを開きます。</p>
+        </div>
+        {!client ? (
+          <p role="alert" className="error-message">
+            接続設定が必要です。店舗の担当者に確認してください。
           </p>
-          <div className="login-illustration" aria-hidden="true">
-            <div className="illustration-calendar">
-              <span>SHIFT NOTE</span>
-              <div className="illustration-grid">
-                {Array.from({ length: 12 }, (_, index) => (
-                  <i key={index}>
-                    {index === 4 || index === 6 || index === 9 ? (
-                      <UiIcon name="check" />
-                    ) : null}
-                  </i>
-                ))}
-              </div>
-            </div>
-            <span className="illustration-stamp">
-              <UiIcon name="sun" />
-            </span>
-          </div>
-          <p className="login-story-footer">
-            ねぎしやの、みんなでつくるシフト。
-          </p>
-        </aside>
-        <Card className="login-card gap-0 border-0 bg-transparent p-7 shadow-none ring-0 sm:p-12">
-          <div className="brand">
-            <span className="brand-seal">ね</span>
-            <span>
-              ねぎしや<small>SHIFT NOTE</small>
-            </span>
-          </div>
-          <p className="eyebrow">WELCOME BACK</p>
-          <h1>シフトノートにログイン</h1>
-          <p className="login-description">あなたの予定を、ここから。</p>
-          {!client ? (
-            <p role="alert">
-              接続設定が必要です。.env.example を参考に Supabase の URL
-              と公開キーを設定してください。
+        ) : !ready ? (
+          <p role="status">名前を読み込み中…</p>
+        ) : error ? (
+          <>
+            <p role="alert" className="error-message">
+              {error}
             </p>
-          ) : !ready ? (
-            <p role="status">ログイン状態を確認しています…</p>
-          ) : (
-            <form
-              onSubmit={async (event) => {
-                event.preventDefault();
-                setBusy(true);
-                setError('');
-                try {
-                  const { error: signInError } =
-                    await client.auth.signInWithPassword({
-                      email: email.trim(),
-                      password,
-                    });
-                  if (signInError)
-                    setError(
-                      'ログインできませんでした。メールアドレス・パスワードを確認してください。',
-                    );
-                  else setPassword('');
-                } catch {
-                  setError(
-                    '通信に失敗しました。時間をおいて再度お試しください。',
-                  );
-                } finally {
-                  setBusy(false);
-                }
+            <Button
+              variant="outline"
+              className="min-h-11"
+              disabled={busyId !== null}
+              onClick={() => {
+                setReady(false);
+                setRevision((value) => value + 1);
               }}
             >
-              <Label htmlFor="email">メールアドレス</Label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                disabled={busy}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-              <Label htmlFor="password">パスワード</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                disabled={busy}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-              <p role="alert" className="error-message">
-                {error}
-              </p>
-              <Button type="submit" className="submit-button" disabled={busy}>
-                {busy ? 'ログイン中…' : 'ログイン'}
-                <UiIcon name="arrow" />
+              もう一度読み込む
+            </Button>
+          </>
+        ) : staff.length === 0 ? (
+          <p role="status">選択できるスタッフがまだ登録されていません。</p>
+        ) : (
+          <div className="grid grid-cols-2 gap-3" aria-label="スタッフの名前">
+            {staff.map((person) => (
+              <Button
+                key={person.id}
+                variant="outline"
+                className="h-auto min-h-16 min-w-0 justify-between gap-2 whitespace-normal rounded-xl px-4 py-4 text-base"
+                disabled={busyId !== null}
+                onClick={async () => {
+                  if (!session || busyId !== null) return;
+                  setBusyId(person.id);
+                  try {
+                    const { error: selectError } = await client
+                      .from('staff_sessions')
+                      .upsert({
+                        user_id: session.user.id,
+                        staff_id: person.id,
+                      });
+                    if (selectError) throw selectError;
+                    setSelected(person);
+                  } catch {
+                    setError(
+                      '名前を選択できませんでした。もう一度読み込んでから選び直してください。',
+                    );
+                  } finally {
+                    setBusyId(null);
+                  }
+                }}
+              >
+                <span className="min-w-0 flex-1 break-words text-center">
+                  <StaffName name={person.display_name} />
+                </span>
+                <UiIcon name={busyId === person.id ? 'clock' : 'arrow'} />
               </Button>
-              <p className="hint">
-                ねぎしやの登録済みスタッフのみ利用できます。アカウントがない場合やパスワードを忘れた場合は、店舗の運用担当者に連絡してください。
-              </p>
-            </form>
-          )}
-        </Card>
-      </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </main>
   );
 }

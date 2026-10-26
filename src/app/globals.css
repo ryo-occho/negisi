@@ -1216,6 +1216,10 @@
     }
   }
   @media (max-width: 760px) {
+    .staff-name-detail {
+      display: block;
+      white-space: nowrap;
+    }
     .availability-view-switch {
       margin-top: 8px;
     }
@@ -1247,17 +1251,14 @@
       border-radius: 12px 12px 12px 3px;
     }
     .sidebar nav {
-      display: flex;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 6px;
       margin-top: 16px;
-      padding-bottom: 10px;
-      overflow-x: auto;
-      overscroll-behavior-x: contain;
-      scrollbar-width: thin;
+      padding-bottom: 12px;
     }
     .nav-item {
-      flex: 0 0 auto;
-      width: auto;
+      width: 100%;
       justify-content: center;
       gap: 6px;
       min-height: 48px;

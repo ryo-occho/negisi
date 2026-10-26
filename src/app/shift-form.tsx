@@ -1,5 +1,7 @@
 ﻿'use client';
 
+import StaffName from './staff-name';
+
 import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../lib/database.types';
@@ -45,11 +47,13 @@ export default function ShiftForm({
   userId,
   initialMonth,
   initialHalf,
+  onChangeStaff,
 }: {
   client: Client;
   userId: string;
   initialMonth: string;
   initialHalf: Half;
+  onChangeStaff: () => void;
 }) {
   const [month, setMonth] = useState(initialMonth);
   const [startDay, setStartDay] = useState(initialHalf === 'first' ? 1 : 16);
@@ -73,7 +77,6 @@ export default function ShiftForm({
   const [error, setError] = useState('');
   const [dirty, setDirty] = useState(false);
   const [view, setView] = useState<View>('edit');
-  const [signingOut, setSigningOut] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   useEffect(() => {
@@ -126,16 +129,6 @@ export default function ShiftForm({
     if (dirty) setPendingAction(() => action);
     else action();
   }
-  async function signOut() {
-    setSigningOut(true);
-    const { error: signOutError } = await client.auth.signOut({
-      scope: 'local',
-    });
-    if (signOutError) {
-      setError('ログアウトに失敗しました。もう一度お試しください。');
-      setSigningOut(false);
-    }
-  }
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -163,7 +156,7 @@ export default function ShiftForm({
                 variant="ghost"
                 key={id}
                 className={cn(
-                  'nav-item h-auto min-w-0 justify-start text-[13px] max-[760px]:justify-center max-[760px]:px-1 max-[760px]:text-[11px] max-[380px]:text-[10px]',
+                  'nav-item h-auto min-w-0 justify-start text-[13px] max-[760px]:justify-center max-[760px]:whitespace-normal max-[760px]:px-1 max-[760px]:text-[11px] max-[380px]:text-[10px]',
                   view === id && 'active',
                 )}
                 aria-pressed={view === id}
@@ -191,17 +184,17 @@ export default function ShiftForm({
             {me?.display_name.slice(0, 1) ?? 'ね'}
           </span>
           <div>
-            {me?.display_name ?? 'スタッフ'}
+            <StaffName name={me?.display_name ?? 'スタッフ'} />
             <small>ねぎしや</small>
             <Button
               variant="ghost"
               size="sm"
               className="clear-button"
-              disabled={signingOut}
-              onClick={() => requestLeave(() => void signOut())}
+              disabled={saving}
+              onClick={() => requestLeave(onChangeStaff)}
             >
               <UiIcon name="logout" />
-              ログアウト
+              名前を選び直す
             </Button>
           </div>
         </div>
@@ -215,11 +208,11 @@ export default function ShiftForm({
             variant="ghost"
             size="sm"
             className="clear-button mobile-logout hidden max-[760px]:inline-flex"
-            disabled={signingOut}
-            onClick={() => requestLeave(() => void signOut())}
+            disabled={saving}
+            onClick={() => requestLeave(onChangeStaff)}
           >
             <UiIcon name="logout" />
-            ログアウト
+            名前を変更
           </Button>
           <Badge variant="secondary" className="demo-badge max-[760px]:hidden">
             スタッフ専用
