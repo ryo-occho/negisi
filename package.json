@@ -10,6 +10,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:start": "supabase db start",
+    "db:start:app": "supabase start -x realtime,storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor",
+    "db:seed": "node scripts/seed-local.mjs",
     "db:stop": "supabase stop",
     "test:db": "supabase test db",
     "dev": "next dev",
