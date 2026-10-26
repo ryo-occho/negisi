@@ -14,6 +14,12 @@ export type Database = {
   };
   public: {
     Tables: {
+      staff_sessions: {
+        Row: { user_id: string; staff_id: string };
+        Insert: { user_id: string; staff_id: string };
+        Update: { user_id?: string; staff_id?: string };
+        Relationships: [];
+      };
       shift_schedule_drafts: {
         Row: {
           period_id: string;
@@ -165,7 +171,7 @@ export type Database = {
           can_manage_shifts?: boolean;
           active?: boolean;
           display_name: string;
-          id: string;
+          id?: string;
         };
         Update: {
           can_manage_shifts?: boolean;
