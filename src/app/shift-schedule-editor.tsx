@@ -1,5 +1,7 @@
 'use client';
 
+import StaffName from './staff-name';
+
 import { useEffect, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
@@ -394,7 +396,7 @@ export default function ShiftScheduleEditor({
                     onClick={() => toggleAssignment(person.id, day.key, slot)}
                   >
                     {assigned && <span aria-hidden="true">✓</span>}
-                    {person.display_name}
+                    <StaffName name={person.display_name} />
                   </Button>
                 );
               })}
@@ -650,7 +652,7 @@ export default function ShiftScheduleEditor({
                           scope="row"
                           className="sticky left-0 z-10 border-b border-r bg-white p-3 text-left"
                         >
-                          {person.display_name}
+                          <StaffName name={person.display_name} />
                           {!person.active && (
                             <span className="block text-amber-800">
                               利用停止
