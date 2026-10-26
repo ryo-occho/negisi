@@ -1,5 +1,7 @@
 'use client';
 
+import StaffName from './staff-name';
+
 import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import type { Database } from '@/lib/database.types';
@@ -164,7 +166,7 @@ export default function AppClient({
                 }}
               >
                 <span className="min-w-0 break-words">
-                  {person.display_name}
+                  <StaffName name={person.display_name} />
                 </span>
                 <UiIcon name={busyId === person.id ? 'clock' : 'arrow'} />
               </Button>

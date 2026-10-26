@@ -1216,6 +1216,10 @@
     }
   }
   @media (max-width: 760px) {
+    .staff-name-detail {
+      display: block;
+      white-space: nowrap;
+    }
     .availability-view-switch {
       margin-top: 8px;
     }

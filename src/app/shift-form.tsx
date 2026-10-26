@@ -1,5 +1,7 @@
 ﻿'use client';
 
+import StaffName from './staff-name';
+
 import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '../lib/database.types';
@@ -182,7 +184,7 @@ export default function ShiftForm({
             {me?.display_name.slice(0, 1) ?? 'ね'}
           </span>
           <div>
-            {me?.display_name ?? 'スタッフ'}
+            <StaffName name={me?.display_name ?? 'スタッフ'} />
             <small>ねぎしや</small>
             <Button
               variant="ghost"

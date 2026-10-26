@@ -1,5 +1,7 @@
 'use client';
 
+import StaffName from './staff-name';
+
 import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
@@ -113,7 +115,9 @@ export default function StaffAvailabilityTable({
                   submissionByStaff.get(person.id)?.submitted_at,
                 )}
               >
-                <span>{person.display_name}</span>
+                <span>
+                  <StaffName name={person.display_name} />
+                </span>
                 <span>
                   {!person.active
                     ? '利用停止'
@@ -153,7 +157,7 @@ export default function StaffAvailabilityTable({
                       {people.length ? (
                         people.map((person) => (
                           <span className="mobile-person" key={person.id}>
-                            {person.display_name}
+                            <StaffName name={person.display_name} />
                             {!person.active ? (
                               <small>利用停止</small>
                             ) : (
@@ -224,7 +228,7 @@ export default function StaffAvailabilityTable({
                 >
                   <th scope="row">
                     <span className="staff-name" title={person.display_name}>
-                      {person.display_name}
+                      <StaffName name={person.display_name} />
                     </span>
                   </th>
                   <td>
