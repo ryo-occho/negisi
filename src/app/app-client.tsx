@@ -165,7 +165,7 @@ export default function AppClient({
                   }
                 }}
               >
-                <span className="min-w-0 break-words">
+                <span className="min-w-0 flex-1 break-words text-center">
                   <StaffName name={person.display_name} />
                 </span>
                 <UiIcon name={busyId === person.id ? 'clock' : 'arrow'} />
