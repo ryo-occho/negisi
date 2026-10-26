@@ -20,7 +20,9 @@ select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000002
 select public.save_shift_availability('00000000-0000-0000-0000-000000000010', '[{"work_date":"2099-02-17","slot":"either"}]', true);
 select is((select count(*) from public.shift_availability where period_id = '00000000-0000-0000-0000-000000000010'), 2::bigint, 'Staff can read both submissions');
 select is((select slot from public.shift_availability where period_id = '00000000-0000-0000-0000-000000000010' and staff_id = '00000000-0000-0000-0000-000000000001'), 'dinner', 'Saving colleague does not replace first user');
+reset role;
 update public.shift_periods set accepting = false where id = '00000000-0000-0000-0000-000000000010';
+set local role authenticated;
 select throws_ok($$select public.save_shift_availability('00000000-0000-0000-0000-000000000010', '[]', true)$$, '42501', null, 'RPC rejects closed period');
 reset role;
 update public.staff set active = false where id = '00000000-0000-0000-0000-000000000002';
